@@ -1,4 +1,5 @@
-extern crate thrift;
+#[macro_use]
+extern crate terminal_thrift as thrift;
 
 mod thrift_test;
 

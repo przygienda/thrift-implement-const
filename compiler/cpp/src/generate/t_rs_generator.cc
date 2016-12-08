@@ -30,8 +30,12 @@
 
 using std::map;
 using std::ofstream;
+using std::ostringstream;
 using std::string;
+using std::stringstream;
 using std::vector;
+
+static const string endl = "\n"; // avoid ostream << std::endl flushes
 
 /**
  * Rust code generator.
@@ -60,12 +64,15 @@ class t_rs_generator : public t_oop_generator {
   void generate_enum(t_enum*     tenum);
   void generate_struct(t_struct*   tstruct);
   void generate_service(t_service*  tservice);
+  void generate_consts(std::vector<t_const*>&);
+  string render_const_value(t_type* type, t_const_value* value);
 
  private:
   string rs_autogen_comment();
   string rs_imports();
 
   string render_rs_type(t_type* type);
+  string render_rs_value(t_const_value * value_);
   string render_suffix(t_type* type);
   string render_type_init(t_type* type);
 
@@ -175,9 +182,8 @@ void t_rs_generator::generate_program() {
   }
 
   // Generate constants
-  // TODO: Implement constant generation.
-  // vector<t_const*> consts = program_->get_consts();
-  // generate_consts(consts);
+  vector<t_const*> consts = program_->get_consts();
+  generate_consts(consts);
 
   // Generate services
   for (sv_iter = services.begin(); sv_iter != services.end(); ++sv_iter) {
@@ -230,6 +236,130 @@ void t_rs_generator::generate_typedef(t_typedef* ttypedef) {
   string tdef = render_rs_type(ttypedef->get_type());
   indent(f_mod_) << "pub type " << tname << " = " << tdef << ";\n";
   f_mod_ << "\n";
+}
+
+/**
+ * Prints the value of a constant with the given type. Note that type checking
+ * is NOT performed in this function as it is always run beforehand using the
+ * validate_types method in main.cc
+ */
+string t_rs_generator::render_const_value(t_type* type, t_const_value* value) {
+  type = get_true_type(type);
+  std::ostringstream out;
+
+  if (type->is_base_type()) {
+    t_base_type::t_base tbase = ((t_base_type*)type)->get_base();
+    switch (tbase) {
+    case t_base_type::TYPE_STRING:
+      out << '"' << get_escaped_string(value) << '"';
+      break;
+    case t_base_type::TYPE_BOOL:
+      out << (value->get_integer() > 0 ? "True" : "False");
+      break;
+    case t_base_type::TYPE_BYTE:
+    case t_base_type::TYPE_I16:
+    case t_base_type::TYPE_I32:
+    case t_base_type::TYPE_I64:
+      out << value->get_integer();
+      break;
+    case t_base_type::TYPE_DOUBLE:
+      if (value->get_type() == t_const_value::CV_INTEGER) {
+        out << value->get_integer();
+      } else {
+        out << value->get_double();
+      }
+      break;
+    default:
+      throw "compiler error: no const of base type " + t_base_type::t_base_name(tbase);
+    }
+  } else if (type->is_enum()) {
+      // pull out the enum name and the enum const name
+      indent(out) << render_rs_type(type) << "::" << value->get_identifier_name();
+  }
+#if 0
+  // @todo: not working yet
+  else if (type->is_struct() || type->is_xception()) {
+      string tname = render_rs_type(type);
+    out << tname << "(**{" << endl;
+    indent_up();
+    const vector<t_field*>& fields = ((t_struct*)type)->get_members();
+    vector<t_field*>::const_iterator f_iter;
+    const map<t_const_value*, t_const_value*>& val = value->get_map();
+    map<t_const_value*, t_const_value*>::const_iterator v_iter;
+    for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
+      t_type* field_type = NULL;
+      for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
+        if ((*f_iter)->get_name() == v_iter->first->get_string()) {
+          field_type = (*f_iter)->get_type();
+        }
+      }
+      if (field_type == NULL) {
+        throw "type error: " + type->get_name() + " has no field " + v_iter->first->get_string();
+      }
+      out << indent();
+      out << render_const_value(g_type_string, v_iter->first);
+      out << " : ";
+      out << render_const_value(field_type, v_iter->second);
+      out << "," << endl;
+    }
+    indent_down();
+    indent(out) << "})";
+  } else if (type->is_map()) {
+    t_type* ktype = ((t_map*)type)->get_key_type();
+    t_type* vtype = ((t_map*)type)->get_val_type();
+    out << "{" << endl;
+    indent_up();
+    const map<t_const_value*, t_const_value*>& val = value->get_map();
+    map<t_const_value*, t_const_value*>::const_iterator v_iter;
+    for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
+      out << indent();
+      out << render_const_value(ktype, v_iter->first);
+      out << " : ";
+      out << render_const_value(vtype, v_iter->second);
+      out << "," << endl;
+    }
+    indent_down();
+    indent(out) << "}";
+  } else if (type->is_list() || type->is_set()) {
+    t_type* etype;
+    if (type->is_list()) {
+      etype = ((t_list*)type)->get_elem_type();
+    } else {
+      etype = ((t_set*)type)->get_elem_type();
+    }
+    if (type->is_set()) {
+      out << "set(";
+    }
+    out << "[" << endl;
+    indent_up();
+    const vector<t_const_value*>& val = value->get_list();
+    vector<t_const_value*>::const_iterator v_iter;
+    for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
+      out << indent();
+      out << render_const_value(etype, *v_iter);
+      out << "," << endl;
+    }
+    indent_down();
+    indent(out) << "]";
+    if (type->is_set()) {
+      out << ")";
+    }
+#endif
+  else {
+    throw "CANNOT GENERATE CONSTANT FOR TYPE: " + type->get_name();
+  }
+
+  return out.str();
+}
+
+void t_rs_generator::generate_consts(std::vector<t_const*>& objects) {
+    for (auto o_iter = objects.begin(); o_iter != objects.end(); ++o_iter) {
+        string tdef = render_rs_type( (*o_iter)->get_type());
+        string cname = pascalcase( (*o_iter)->get_name());
+        string cvalue= render_const_value((*o_iter)->get_type(), (*o_iter)->get_value());
+
+        indent(f_mod_) << "pub const " << cname << " : " << tdef << " = " << cvalue << ";\n";
+    }
 }
 
 // Generates an enum, translating a thrift enum into a rust enum.
@@ -371,9 +501,9 @@ void t_rs_generator::generate_service_methods(char field, t_service* tservice) {
 
         string rettype = render_rs_type(tfunction->get_returntype());
 
-	if (tfunction->get_xceptions()->get_members().size() > 0) {
+    if (tfunction->get_xceptions()->get_members().size() > 0) {
           rettype = "Result<" + rettype + ", " + errname + ">";
-	}
+    }
 
         indent(f_mod_) << "] (" << rettype << "),\n";
     }
