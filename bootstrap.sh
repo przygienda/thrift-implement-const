@@ -19,6 +19,8 @@
 # under the License.
 #
 
+YACC=/usr/local/opt/bison/bin/bison
+
 ./cleanup.sh
 if test -d lib/php/src/ext/thrift_protocol ; then
     if phpize -v >/dev/null 2>/dev/null ; then

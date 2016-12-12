@@ -119,6 +119,7 @@ THRIFT_ADD_COMPILER(delphi  "Enable compiler for Delphi" ON)
 THRIFT_ADD_COMPILER(go      "Enable compiler for Go" ON)
 THRIFT_ADD_COMPILER(d       "Enable compiler for D" ON)
 THRIFT_ADD_COMPILER(lua     "Enable compiler for Lua" ON)
+THRIFT_ADD_COMPILER(rs      "Enable compiler for Rust" ON)
 
 # Thrift is looking for include files in the src directory
 # we also add the current binary directory for generated files

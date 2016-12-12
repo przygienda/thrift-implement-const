@@ -64,7 +64,7 @@ class t_rs_generator : public t_oop_generator {
   void generate_enum(t_enum*     tenum);
   void generate_struct(t_struct*   tstruct);
   void generate_service(t_service*  tservice);
-  void generate_consts(std::vector<t_const*>&);
+  void generate_consts(std::vector<t_const*>);
   string render_const_value(t_type* type, t_const_value* value);
 
  private:
@@ -352,7 +352,7 @@ string t_rs_generator::render_const_value(t_type* type, t_const_value* value) {
   return out.str();
 }
 
-void t_rs_generator::generate_consts(std::vector<t_const*>& objects) {
+void t_rs_generator::generate_consts(std::vector<t_const*> objects) {
     for (auto o_iter = objects.begin(); o_iter != objects.end(); ++o_iter) {
         string tdef = render_rs_type( (*o_iter)->get_type());
         string cname = pascalcase( (*o_iter)->get_name());

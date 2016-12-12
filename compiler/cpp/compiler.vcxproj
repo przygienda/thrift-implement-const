@@ -76,6 +76,7 @@
     <ClCompile Include="src\generate\t_rb_generator.cc" />
     <ClCompile Include="src\generate\t_st_generator.cc" />
     <ClCompile Include="src\generate\t_xsd_generator.cc" />
+    <ClCompile Include="src\generate\t_rs_generator.cc" />
     <ClCompile Include="src\main.cc" />
     <ClCompile Include="src\md5.c" />
     <ClCompile Include="src\parse\parse.cc" />
