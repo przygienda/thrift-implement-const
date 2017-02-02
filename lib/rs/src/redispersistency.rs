@@ -14,18 +14,17 @@ use redis::PipelineCommands;
 
 /// trait provides persistency for `thrift::protocol::ThriftTyped` on
 /// [https://redis.io/]
-pub trait RedisPersistency
-: protocol::ThriftTyped + redis::FromRedisValue + Sized
+pub trait RedisPersistency : Sized
 {
 	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>;
 	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>;
 }
 
-impl<X> RedisPersistency
-for Vec<X>
-where X: Default + protocol::ThriftTyped +
-		redis::ToRedisArgs + redis::FromRedisValue + Sized,
-	   {
+/// that's implementation if the type can be put into redis directly
+impl<X> RedisPersistency for Vec<X>
+where X: Default + protocol::ThriftTyped + redis::ToRedisArgs +
+			redis::FromRedisValue + Sized,
+{
 	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 	{
 		// try!(redis::cmd("SET").arg("k1").arg(&[5,6]).execute(conn));
@@ -46,9 +45,9 @@ where X: Default + protocol::ThriftTyped +
 	}
 }
 
-impl<X: RedisPersistency + Ord + Default> RedisPersistency
+impl<X> RedisPersistency
 for BTreeSet<X>
-where X: Default + protocol::ThriftTyped +
+where X: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
 	   {
 	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
@@ -67,12 +66,11 @@ where X: Default + protocol::ThriftTyped +
 	}
 }
 
-impl<T: RedisPersistency + Ord + Default,
-	 V: RedisPersistency > RedisPersistency
+impl<T,V> RedisPersistency
 for BTreeMap<T,V>
-where T: Default + protocol::ThriftTyped +
+where T: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
-	  V: protocol::ThriftTyped +
+	  V: RedisPersistency + protocol::ThriftTyped +
 	  		redis::ToRedisArgs + redis::FromRedisValue + Sized,
 	   {
 	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
@@ -91,9 +89,9 @@ where T: Default + protocol::ThriftTyped +
 	}
 }
 
-impl<X: RedisPersistency + Default> RedisPersistency for Option<X>
-where X: Default + protocol::ThriftTyped +
-redis::ToRedisArgs + redis::FromRedisValue + Sized,
+impl<X> RedisPersistency for Option<X>
+where X: RedisPersistency + Default + protocol::ThriftTyped +
+		redis::ToRedisArgs + redis::FromRedisValue + Sized,
 
 {
 	/// we delete key and write only if we have something to write, no key = None
@@ -146,3 +144,16 @@ base_value_to_redis_impl!(i32);
 base_value_to_redis_impl!(i64);
 base_value_to_redis_impl!(f64);
 base_value_to_redis_impl!(bool);
+
+// that makes the trait recursive, won't work since fields vary
+//impl<T: RedisPersistency + RedisComposite> RedisPersistency for Vec<T>
+//{
+//	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
+//	{
+//		Ok(())
+//	}
+//	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Vec<Self>>>
+//	{
+//		Some(vec![])
+//	}
+//}

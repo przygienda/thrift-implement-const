@@ -1,5 +1,4 @@
 use std::collections::{BTreeSet};
-use std::fmt::Display;
 #[cfg(feature = "redis")]
 use redis;
 

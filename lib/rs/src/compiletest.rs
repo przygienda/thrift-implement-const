@@ -1,6 +1,5 @@
 #![allow(dead_code, non_camel_case_types)]
 use std::collections::{BTreeSet};
-use std::fmt::Display;
 #[cfg(feature = "redis")]
 use redis;
 

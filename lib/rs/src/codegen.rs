@@ -324,7 +324,7 @@ macro_rules! strukt {
 			}
 
 			fn redis_read_vec(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<Vec<$name>>>
+				-> redis::RedisResult<Option<Vec<Self>>>
 			 {
 					use redis::Commands;
 
@@ -382,7 +382,7 @@ macro_rules! strukt {
 				Ok(())
 			}
 
-			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<$name>> {
+			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>> {
 				let mut dk : String = key.clone();
 				let dklen = dk.len();
 
@@ -423,7 +423,7 @@ macro_rules! strukt {
 			}
 
 			fn redis_read(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<BTreeSet<$name>>> {
+				-> redis::RedisResult<Option<Self>> {
 				if let Ok(rv) = $name::redis_read_vec(conn, key) {
 					if let Some(irv) = rv {
 						Ok(Some(irv.into_iter().collect::<BTreeSet<$name>>()))
@@ -545,7 +545,7 @@ macro_rules! enom {
 				Ok(())
 			}
 
-			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<$name>> {
+			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>> {
 				use redis::Commands;
 				use $crate::protocol::FromNum;
 
@@ -560,56 +560,76 @@ macro_rules! enom {
 			}
 		}
 
-		#[cfg(feature = "redis")]
-        impl $crate::redispersistency::RedisPersistency for Vec<$name>
-
-		{
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				self.iter().cloned().map(|e| e as i32).collect::<Vec<_>>().redis_write(conn,key)
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<Vec<$name>>> {
-				use $crate::protocol::FromNum;
-
-				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
-					Ok(Some(vec
-						.into_iter()
-							.filter_map(|v| $name::from_num(v))
-						.collect()))
-				} else {
-					Ok(None)
-				}
-			}
-		}
-
-		#[cfg(feature = "redis")]
-        impl $crate::redispersistency::RedisPersistency for BTreeSet<$name>
-
-		{
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				self.iter().cloned().map(|e: $name| e as i32).collect::<Vec<_>>().redis_write(conn,key)
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<BTreeSet<$name>>> {
-				use $crate::protocol::FromNum;
-
-				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
-					Ok(Some(vec
-						.into_iter()
-							.filter_map(|v| $name::from_num(v))
-						.collect()))
-				} else {
-					Ok(None)
-				}
-			}
-		}
+//		#[cfg(feature = "redis")]
+//        impl $crate::redispersistency::RedisPersistency for Vec<$name>
+//
+//		{
+//			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
+//				self.iter().cloned().map(|e| e as i32).collect::<Vec<_>>().redis_write(conn,key)
+//			}
+//
+//			fn redis_read(conn: &redis::Connection, key: &String)
+//				-> redis::RedisResult<Option<Vec<$name>>> {
+//				use $crate::protocol::FromNum;
+//
+//				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
+//					Ok(Some(vec
+//						.into_iter()
+//							.filter_map(|v| $name::from_num(v))
+//						.collect()))
+//				} else {
+//					Ok(None)
+//				}
+//			}
+//		}
+//
+//		#[cfg(feature = "redis")]
+//        impl $crate::redispersistency::RedisPersistency for BTreeSet<$name>
+//
+//		{
+//			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
+//				self.iter().cloned().map(|e: $name| e as i32).collect::<Vec<_>>().redis_write(conn,key)
+//			}
+//
+//			fn redis_read(conn: &redis::Connection, key: &String)
+//				-> redis::RedisResult<Option<Self>> {
+//				use $crate::protocol::FromNum;
+//
+//				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
+//					Ok(Some(vec
+//						.into_iter()
+//							.filter_map(|v| $name::from_num(v))
+//						.collect()))
+//				} else {
+//					Ok(None)
+//				}
+//			}
+//		}
 
 		#[cfg(feature = "redis")]
 		impl redis::FromRedisValue for $name {
-			fn from_redis_value(_: &redis::Value) -> redis::RedisResult<$name> {
-				unreachable!();
+			fn from_redis_value(v: &redis::Value) -> redis::RedisResult<$name> {
+				use $crate::protocol::FromNum;
+
+				match *v {
+					redis::Value::Int(val) => {
+						if let Some(v) = $name::from_num(val as i32) {
+							Ok(v)
+						} else {
+							Err(redis::RedisError::from((redis::ErrorKind::TypeError,
+							"invalid enum value")))
+						}
+					},
+					_ => Err(redis::RedisError::from((redis::ErrorKind::TypeError,
+															"invalid enum value"))),
+				}
+			}
+		}
+
+		#[cfg(feature = "redis")]
+		impl redis::ToRedisArgs for $name {
+			fn to_redis_args(&self) -> Vec<Vec<u8>> {
+				(*self as i32).to_redis_args()
 			}
 		}
     }
