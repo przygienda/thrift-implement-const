@@ -1,4 +1,5 @@
-//! implements redis persistency traits for the Thrift models under Rust
+//! implements redis [https://redis.io/] persistency traits for the Thrift models under Rust
+//!
 use std::fmt::Display;
 use std::hash::Hash;
 use std::collections::BTreeSet;
