@@ -5,6 +5,9 @@ extern crate ordered_float;
 #[macro_use]
 extern crate log;
 
+#[cfg(feature = "redis")]
+extern crate redis;
+
 use std::{io, fmt};
 use std::error::Error as StdError;
 
@@ -22,6 +25,8 @@ pub mod server;
 pub mod processor;
 pub mod proxy;
 pub mod virt;
+#[cfg(feature = "redis")]
+pub mod redispersistency;
 
 #[macro_use]
 mod codegen;

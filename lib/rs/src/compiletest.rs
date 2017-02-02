@@ -1,5 +1,8 @@
 #![allow(dead_code, non_camel_case_types)]
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeSet};
+use std::fmt::Display;
+#[cfg(feature = "redis")]
+use redis;
 
 strukt! {
     name = Simple,
@@ -8,6 +11,7 @@ strukt! {
     }
 }
 
+#[cfg(not(feature = "redis"))]
 strukt! {
     name = DeeplyNested,
     fields = {
@@ -15,6 +19,7 @@ strukt! {
     }
 }
 
+#[cfg(not(feature = "redis"))]
 strukt! {
     name = ReferencesOther,
     fields = {
@@ -30,6 +35,7 @@ enom! {
     default = Add
 }
 
+#[cfg(not(feature = "redis"))]
 service! {
     trait_name = SharedService,
     processor_name = SharedServiceProcessor,
@@ -42,6 +48,7 @@ service! {
     fields = [shared: S,]
 }
 
+#[cfg(not(feature = "redis"))]
 service! {
      trait_name = ChildService,
      processor_name = ChildServiceProcessor,
@@ -59,6 +66,7 @@ service! {
      fields = [shared: S, child: C,]
 }
 
+#[cfg(not(feature = "redis"))]
 strukt! {
      name = Exception,
      fields = {
@@ -67,6 +75,7 @@ strukt! {
      }
 }
 
+#[cfg(not(feature = "redis"))]
 service! {
     trait_name = ServiceWithException,
     processor_name = ServiceWithExceptionProcessor,

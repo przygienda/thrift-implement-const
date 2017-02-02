@@ -226,7 +226,7 @@ macro_rules! service_client_methods_translate_result {
 macro_rules! strukt {
     (name = $name:ident,
      fields = { $($fname:ident: $fty:ty => $id:expr,)+ }) => {
-        #[derive(Debug, Clone, Default, Eq, PartialEq, PartialOrd, Ord)]
+        #[derive(Debug, Clone, Default, Eq, PartialEq, PartialOrd, Ord, Hash)]
         pub struct $name {
             $(pub $fname: $fty,)+
         }
@@ -288,6 +288,161 @@ macro_rules! strukt {
                 Ok(())
             }
         }
+
+        #[cfg(feature = "redis")]
+		macro_rules! FIELDNDX { () => ( ":FIELD_{:04}")  }
+		#[cfg(feature = "redis")]
+		macro_rules! ARRAYSIZE { () => ( ":ARRAYSIZE")  }
+		#[cfg(feature = "redis")]
+		macro_rules! ARRAYNDX { () => ( ":INDEX_{:04}")  }
+
+        // we normalize advanced sets over a vector of references for other collections
+		#[cfg(feature = "redis")]
+		impl $name {
+
+		    fn redis_write_ref_vec<K>(vec: &Vec<&$name>, conn: &redis::Connection, key: K)
+									-> redis::RedisResult<()>
+			where K: redis::ToRedisArgs + Clone + Display {
+
+				use redis::Commands;
+				use redispersistency::RedisPersistency;
+
+				let mut dk = format ! ("{}", key);
+				let dklen = dk.len();
+
+				{
+					let mut az = dk.clone();
+					az.push_str( & format ! (ARRAYSIZE ! ()));
+					try ! (conn.set(az, vec.len()));
+				}
+				for e in vec.iter().enumerate() {
+					dk.push_str( & format ! (ARRAYNDX ! (), e.0));
+					try ! ((**e.1).redis_write(conn, dk.clone()));
+					dk.truncate(dklen);
+				}
+
+				Ok(())
+			}
+
+			fn redis_read_vec<K>(conn: &redis::Connection, key: K)
+				-> redis::RedisResult<Option<Vec<$name>>>
+			where K: redis::ToRedisArgs + Clone + Display {
+					use redis::Commands;
+
+					let mut dk = format!("{}",key);
+					let dklen = dk.len();
+
+					// do NOT use scan or anything like this, Redis will just walk all keys
+					// possibly
+					dk.push_str(&format!(ARRAYSIZE!()));
+					conn.get(dk.clone())
+						.map_err(|_| redis::RedisError::from((redis::ErrorKind::TypeError,
+															"cannot find array size")))
+						.and_then(|alen| {
+							if let Some(ialen) = alen {
+								let mut rv = Vec::<$name>::with_capacity(ialen);
+
+								dk.truncate(dklen);
+								for _ in 0..ialen {
+									let mut r: $ name = $ name::default();
+									$ ({
+
+										dk.push_str( & format ! (FIELDNDX ! (), $id));
+										if let Some(v) = try ! (
+											$crate::redispersistency::RedisPersistency::redis_read(conn,
+												dk.clone())) {
+											r.$fname = v;
+										}
+										dk.truncate(dklen);
+									}) *
+									rv.push(r);
+								}
+								Ok(Some(rv))
+							} else {
+								Err(redis::RedisError::from((redis::ErrorKind::TypeError,
+															"cannot find array size")))
+							}
+						})
+			}
+		}
+
+		#[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for $name
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+
+				let mut dk = format!("{}",key);
+				let dklen = dk.len();
+
+				$({
+					dk.push_str(&format!(FIELDNDX!(),$id));
+					try!(self.$fname.redis_write(conn, dk.clone()));
+					dk.truncate(dklen);
+				})*
+				Ok(())
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<$name>> {
+				let mut dk = format!("{}",key);
+				let dklen = dk.len();
+
+				let mut r : $name = $name::default();
+
+				$({
+					dk.push_str(&format!(FIELDNDX!(),$id));
+					if let Some(v) = try!($crate::redispersistency::RedisPersistency::redis_read(conn,
+															dk.clone())) {
+						r.$fname = v;
+					}
+					dk.truncate(dklen);
+				})*
+				Ok(Some(r))
+			}
+		}
+
+		#[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for Vec<$name>
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+				$name::redis_write_ref_vec::<K>(&self.iter().collect::<Vec<_>>(), conn, key)
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K)
+				-> redis::RedisResult<Option<Vec<$name>>> {
+				$name::redis_read_vec::<K>(conn, key)
+			}
+		}
+
+		#[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for BTreeSet<$name>
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+				$name::redis_write_ref_vec::<K>(&self.iter().collect::<Vec<_>>(), conn, key)
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K)
+				-> redis::RedisResult<Option<BTreeSet<$name>>> {
+				if let Ok(rv) = $name::redis_read_vec::<K>(conn, key) {
+					if let Some(irv) = rv {
+						Ok(Some(irv.into_iter().collect::<BTreeSet<$name>>()))
+					} else {
+						Ok(None)
+					}
+				} else {
+					Ok(None)
+				}
+			}
+		}
+
+		#[cfg(feature = "redis")]
+		impl redis::FromRedisValue for $name {
+			fn from_redis_value(_: &redis::Value) -> redis::RedisResult<$name> {
+				unreachable!();
+			}
+		}
     };
     (name = $name:ident, fields = {}) => {
         #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -329,6 +484,7 @@ macro_rules! strukt {
                 Ok(())
             }
         }
+
     }
 }
 
@@ -337,7 +493,7 @@ macro_rules! enom {
     (name = $name:ident,
      values = [$($vname:ident = $val:expr,)*],
      default = $dname:ident) => {
-        #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
         #[repr(i32)]
         pub enum $name {
             $($vname = $val),*
@@ -377,6 +533,86 @@ macro_rules! enom {
                 Ok(())
             }
         }
+
+        #[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for $name
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+				use redis::Commands;
+
+				let dk = format!("{}",key);
+				try!(conn.set(dk,*self as i32));
+				Ok(())
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<$name>> {
+				use redis::Commands;
+				use protocol::FromNum;
+
+				let dk = format!("{}",key);
+
+				if let Some(v) = try!(conn.get(dk)) {
+					Ok($name::from_num(v))
+				} else {
+					Ok(None)
+				}
+
+			}
+		}
+
+		#[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for Vec<$name>
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+				self.iter().cloned().map(|e| e as i32).collect::<Vec<_>>().redis_write(conn,key)
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K)
+				-> redis::RedisResult<Option<Vec<$name>>> {
+				use protocol::FromNum;
+
+				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
+					Ok(Some(vec
+						.into_iter()
+							.filter_map(|v| $name::from_num(v))
+						.collect()))
+				} else {
+					Ok(None)
+				}
+			}
+		}
+
+		#[cfg(feature = "redis")]
+        impl<K> $crate::redispersistency::RedisPersistency<K> for BTreeSet<$name>
+		where K: redis::ToRedisArgs + Clone + Display
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()> {
+				self.iter().cloned().map(|e: $name| e as i32).collect::<Vec<_>>().redis_write(conn,key)
+			}
+
+			fn redis_read(conn: &redis::Connection, key: K)
+				-> redis::RedisResult<Option<BTreeSet<$name>>> {
+				use protocol::FromNum;
+
+				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
+					Ok(Some(vec
+						.into_iter()
+							.filter_map(|v| $name::from_num(v))
+						.collect()))
+				} else {
+					Ok(None)
+				}
+			}
+		}
+
+		#[cfg(feature = "redis")]
+		impl redis::FromRedisValue for $name {
+			fn from_redis_value(_: &redis::Value) -> redis::RedisResult<$name> {
+				unreachable!();
+			}
+		}
     }
 }
 

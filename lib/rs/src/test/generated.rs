@@ -1,3 +1,8 @@
+use std::collections::{BTreeSet};
+use std::fmt::Display;
+#[cfg(feature = "redis")]
+use redis;
+
 strukt! {
     name = Simple,
     fields = {
@@ -10,6 +15,8 @@ strukt! {
     fields = {}
 }
 
+// we don't implement arbitrary depth flatenning in Redis
+#[cfg(not(feature = "redis"))]
 strukt! {
     name = Nested,
     fields = {
@@ -30,6 +37,7 @@ strukt! {
          one: i32 => 3,
          two: String => 4,
          three: Vec<Simple> => 9,
+         five: BTreeSet<Operation> => 11,
      }
 }
 

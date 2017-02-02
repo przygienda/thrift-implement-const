@@ -13,4 +13,8 @@ license = "MIT"
 podio = "0.1"
 log = "0"
 ordered-float = "0"
+redis={ optional = true, git = "https://github.com/przygienda/redis-rs.git" }
+
+[features]
+default=["redis"]
 

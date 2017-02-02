@@ -36,6 +36,7 @@ fn test_empty_struct() {
 }
 
 #[test]
+#[cfg(not(feature = "redis"))]
 fn test_recursive_struct() {
     let instance = Recursive {
         recurse: vec![
@@ -97,6 +98,7 @@ fn test_recursive_struct() {
 }
 
 #[test]
+#[cfg(not(feature = "redis"))]
 fn test_nested_list_in_struct() {
     let instance = Nested {
         nested: vec![vec![vec![Simple { key: String::from("Hello World!") }]]]
@@ -129,10 +131,13 @@ fn test_nested_list_in_struct() {
 
 #[test]
 fn test_struct_with_many_fields() {
+    use std::collections::BTreeSet;
+
     let instance = Many {
         one: 17,
         two: String::from("Some String"),
-        three: vec![Simple { key: String::from("A String") }]
+        three: vec![Simple { key: String::from("A String") }],
+        five: BTreeSet::new(),
     };
     let mut protocol = encode(&instance);
 
