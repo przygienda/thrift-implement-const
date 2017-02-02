@@ -1,12 +1,12 @@
 [package]
 
 name = "terminal_thrift"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Jonathan Reem <jonathan.reem@gmail.com>",
            "Simon Génier <s@simon.coffee>",
            "Maxim Golov <maxim.golov@gmail.com>"]
 description = "Thrift runtime library for rust."
-repository = "https://github.com/terminalcloud/thrift"
+repository = "https://github.com/przygienda/thrift-implement-const"
 license = "MIT"
 
 [dependencies]
