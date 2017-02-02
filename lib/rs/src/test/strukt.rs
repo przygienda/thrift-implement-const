@@ -159,6 +159,10 @@ fn test_struct_with_many_fields() {
                     Struct(End),
                 List(End),
             Field(End),
+        Field(Begin((String::from("five"), Type::Set, 11))),
+            Set(Begin((Type::I32,0))),
+            Set(End),
+        Field(End),
             field_end(),
         Struct(End)
     ]);
