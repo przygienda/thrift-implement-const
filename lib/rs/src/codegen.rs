@@ -305,7 +305,7 @@ macro_rules! strukt {
 			where K: redis::ToRedisArgs + Clone + Display {
 
 				use redis::Commands;
-				use redispersistency::RedisPersistency;
+				use $crate::redispersistency::RedisPersistency;
 
 				let mut dk = format ! ("{}", key);
 				let dklen = dk.len();
@@ -548,7 +548,7 @@ macro_rules! enom {
 
 			fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<$name>> {
 				use redis::Commands;
-				use protocol::FromNum;
+				use $crate::protocol::FromNum;
 
 				let dk = format!("{}",key);
 
@@ -571,7 +571,7 @@ macro_rules! enom {
 
 			fn redis_read(conn: &redis::Connection, key: K)
 				-> redis::RedisResult<Option<Vec<$name>>> {
-				use protocol::FromNum;
+				use $crate::protocol::FromNum;
 
 				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
 					Ok(Some(vec
@@ -594,7 +594,7 @@ macro_rules! enom {
 
 			fn redis_read(conn: &redis::Connection, key: K)
 				-> redis::RedisResult<Option<BTreeSet<$name>>> {
-				use protocol::FromNum;
+				use $crate::protocol::FromNum;
 
 				if let Some(vec) = try!(Vec::<i32>::redis_read(conn,key)) {
 					Ok(Some(vec
