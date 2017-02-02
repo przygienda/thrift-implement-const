@@ -14,20 +14,19 @@ use redis::PipelineCommands;
 
 /// trait provides persistency for `thrift::protocol::ThriftTyped` on
 /// [https://redis.io/]
-pub trait RedisPersistency<K>
+pub trait RedisPersistency
 : protocol::ThriftTyped + redis::FromRedisValue + Sized
-where K: redis::ToRedisArgs + Clone + Display
 {
-	fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>;
-	fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>;
+	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>;
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>;
 }
 
-impl<K, X> RedisPersistency<K>
+impl<X> RedisPersistency
 for Vec<X>
 where X: Default + protocol::ThriftTyped +
-redis::ToRedisArgs + redis::FromRedisValue + Sized,
-	  K: redis::ToRedisArgs + Clone + Display {
-	fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>
+		redis::ToRedisArgs + redis::FromRedisValue + Sized,
+	   {
+	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 	{
 		// try!(redis::cmd("SET").arg("k1").arg(&[5,6]).execute(conn));
 		// println!("writing {:?} {:?} {:?}", key.clone(), self, self.to_redis_args());
@@ -40,19 +39,19 @@ redis::ToRedisArgs + redis::FromRedisValue + Sized,
 	}
 
 	/// we need small transaction that figures out the vector length and gets range
-	fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
 	{
 		let llen = try!(conn.llen(key.clone()));
 		conn.lrange(key.clone(), 0, llen)
 	}
 }
 
-impl<K, X: RedisPersistency<K> + Ord + Default> RedisPersistency<K>
+impl<X: RedisPersistency + Ord + Default> RedisPersistency
 for BTreeSet<X>
 where X: Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
-	  K: redis::ToRedisArgs + Clone + Display {
-	fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>
+	   {
+	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 	{
 		// no implemenation for BTreeSet for `redis::ToRedisArgs`
 		redis::Pipeline::new()
@@ -62,21 +61,21 @@ where X: Default + protocol::ThriftTyped +
 			.query(conn)
 	}
 
-	fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
 	{
 		conn.smembers(key)
 	}
 }
 
-impl<K, T: RedisPersistency<K> + Ord + Default,
-	    V: RedisPersistency<K> > RedisPersistency<K>
+impl<T: RedisPersistency + Ord + Default,
+	 V: RedisPersistency > RedisPersistency
 for BTreeMap<T,V>
 where T: Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
 	  V: protocol::ThriftTyped +
 	  		redis::ToRedisArgs + redis::FromRedisValue + Sized,
-	  K: redis::ToRedisArgs + Clone + Display {
-	fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>
+	   {
+	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 	{
 		// no implemenation for BTreeSet for `redis::ToRedisArgs`
 		redis::Pipeline::new()
@@ -86,25 +85,25 @@ where T: Default + protocol::ThriftTyped +
 			.query(conn)
 	}
 
-	fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
 	{
 		conn.hgetall(key)
 	}
 }
 
-impl<K, X: RedisPersistency<K> + Default> RedisPersistency<K> for Option<X>
+impl<X: RedisPersistency + Default> RedisPersistency for Option<X>
 where X: Default + protocol::ThriftTyped +
 redis::ToRedisArgs + redis::FromRedisValue + Sized,
-	  K: redis::ToRedisArgs + Clone + Display
+
 {
 	/// we delete key and write only if we have something to write, no key = None
-	fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>
+	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 	{
 		try!(conn.del(key.clone()));
 		self.as_ref().map(|this| this.redis_write(conn, key)).unwrap_or(Ok(()))
 	}
 
-	fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
 	{
 		match conn.exists(key.clone()) {
 			Err(e) => Err(e),
@@ -122,16 +121,16 @@ redis::ToRedisArgs + redis::FromRedisValue + Sized,
 macro_rules! base_value_to_redis_impl {
     ($t:ty) => (
 
-        impl<K> RedisPersistency<K> for $t
-		where K: redis::ToRedisArgs + Clone + Display {
-			fn redis_write(&self, conn: &redis::Connection, key: K) -> redis::RedisResult<()>
+        impl RedisPersistency for $t
+		{
+			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
 			{
 				try!(conn.del(key.clone()));
 				conn.set(key.clone(), self.to_redis_args())
 			}
 
 			/// we need small transaction that figures out the vector length and gets range
-			fn redis_read(conn: &redis::Connection, key: K) -> redis::RedisResult<Option<Self>>
+			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
 			{
 				conn.get(key)
 			}
