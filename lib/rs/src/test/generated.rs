@@ -37,6 +37,7 @@ strukt! {
          two: String => 4,
          three: Vec<Simple> => 9,
          five: BTreeSet<Operation> => 11,
+         six: Option<Simple> => 14,
      }
 }
 

@@ -138,6 +138,7 @@ fn test_struct_with_many_fields() {
         two: String::from("Some String"),
         three: vec![Simple { key: String::from("A String") }],
         five: BTreeSet::new(),
+        six: None,
     };
     let mut protocol = encode(&instance);
 

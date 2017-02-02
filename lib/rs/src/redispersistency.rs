@@ -12,9 +12,18 @@ use redis::ToRedisArgs;
 use redis::Commands;
 use redis::PipelineCommands;
 
+pub trait RedisStruct
+where Self : Sized {
+	fn redis_write_struct_ref_vec(vec: &Vec<&Self>, conn: &redis::Connection, key: &String)
+-> redis::RedisResult<()>;
+	fn redis_read_struct_vec(conn: &redis::Connection, key: &String)
+					  -> redis::RedisResult<Option<Vec<Self>>>;
+}
+
 /// trait provides persistency for `thrift::protocol::ThriftTyped` on
 /// [https://redis.io/]
-pub trait RedisPersistency : Sized
+pub trait RedisPersistency
+where Self : Sized
 {
 	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>;
 	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>;
@@ -38,15 +47,14 @@ where X: Default + protocol::ThriftTyped + redis::ToRedisArgs +
 	}
 
 	/// we need small transaction that figures out the vector length and gets range
-	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Vec<X>>>
 	{
 		let llen = try!(conn.llen(key.clone()));
 		conn.lrange(key.clone(), 0, llen)
 	}
 }
 
-impl<X> RedisPersistency
-for BTreeSet<X>
+impl<X> RedisPersistency for BTreeSet<X>
 where X: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
 	   {
@@ -60,14 +68,13 @@ where X: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 			.query(conn)
 	}
 
-	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>>
+	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<BTreeSet<X>>>
 	{
 		conn.smembers(key)
 	}
 }
 
-impl<T,V> RedisPersistency
-for BTreeMap<T,V>
+impl<T,V> RedisPersistency for BTreeMap<T,V>
 where T: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 			redis::ToRedisArgs + redis::FromRedisValue + Sized + Hash + Clone,
 	  V: RedisPersistency + protocol::ThriftTyped +
@@ -90,8 +97,7 @@ where T: RedisPersistency + Ord + Default + protocol::ThriftTyped +
 }
 
 impl<X> RedisPersistency for Option<X>
-where X: RedisPersistency + Default + protocol::ThriftTyped +
-		redis::ToRedisArgs + redis::FromRedisValue + Sized,
+where X: RedisPersistency + Default + protocol::ThriftTyped + Sized,
 
 {
 	/// we delete key and write only if we have something to write, no key = None
@@ -145,15 +151,37 @@ base_value_to_redis_impl!(i64);
 base_value_to_redis_impl!(f64);
 base_value_to_redis_impl!(bool);
 
-// that makes the trait recursive, won't work since fields vary
-//impl<T: RedisPersistency + RedisComposite> RedisPersistency for Vec<T>
+//
+//impl RedisPersistency for Vec<RedisStruct>
+//
 //{
-//	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()>
-//	{
-//		Ok(())
+//	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
+//		Self::redis_write_struct_ref_vec(&self.iter().collect::<Vec<_>>(), conn, key)
 //	}
-//	fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Vec<Self>>>
-//	{
-//		Some(vec![])
+//
+//	fn redis_read(conn: &redis::Connection, key: &String)
+//		-> redis::RedisResult<Option<Vec<Self>>> {
+//		Self::redis_read_struct_vec(conn, key)
+//	}
+//}
+//
+//impl RedisPersistency for BTreeSet<RedisStruct>
+//
+//{
+//	fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
+//		Self::redis_write_ref_vec(&self.iter().collect::<Vec<_>>(), conn, key)
+//	}
+//
+//	fn redis_read(conn: &redis::Connection, key: &String)
+//		-> redis::RedisResult<Option<Self>> {
+//		if let Ok(rv) = Self::redis_read_vec(conn, key) {
+//			if let Some(irv) = rv {
+//				Ok(Some(irv.into_iter().collect::<BTreeSet<_>>()))
+//			} else {
+//				Ok(None)
+//			}
+//		} else {
+//			Ok(None)
+//		}
 //	}
 //}
