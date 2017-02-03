@@ -21,9 +21,10 @@ macro_rules! custom_struct_traits {
 	}
 }
 
+#[macro_export]
 macro_rules! custom_enum_traits {
 	( $name: ident,
-	{ $( $vname:ident = $val:expr, ) * }) => {
+	{ $( $vname:ident = $val:expr, )* }) => {
 		impl $ crate::customtraits::NoTrait for $ name {}
 	};
 }

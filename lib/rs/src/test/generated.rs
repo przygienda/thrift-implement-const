@@ -1,6 +1,4 @@
 use std::collections::{BTreeSet};
-#[macro_use]
-use customtraits;
 
 strukt! {
     name = Simple,
