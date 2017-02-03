@@ -25,9 +25,9 @@ pub mod server;
 pub mod processor;
 pub mod proxy;
 pub mod virt;
-#[cfg(feature = "redis")]
-pub mod redispersistency;
 
+#[macro_use]
+mod customtraits;
 #[macro_use]
 mod codegen;
 mod impls;

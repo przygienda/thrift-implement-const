@@ -289,163 +289,7 @@ macro_rules! strukt {
             }
         }
 
-        #[cfg(feature = "redis")]
-		macro_rules! FIELDNDX { () => ( ":FIELD_{:04}")  }
-		#[cfg(feature = "redis")]
-		macro_rules! ARRAYSIZE { () => ( ":ARRAYSIZE")  }
-		#[cfg(feature = "redis")]
-		macro_rules! ARRAYNDX { () => ( ":INDEX_{:04}")  }
-
-        // we normalize advanced sets over a vector of references for other collections
-		#[cfg(feature = "redis")]
-		impl $crate::redispersistency::RedisStruct for $name {
-
-		    fn redis_write_struct_ref_vec(vec: &Vec<&$name>, conn: &redis::Connection, key: &String)
-									-> redis::RedisResult<()> {
-
-				use redis::Commands;
-				use $crate::redispersistency::RedisPersistency;
-
-				let mut dk : String = key.clone();
-				let dklen = dk.len();
-
-				{
-					let mut az = dk.clone();
-					az.push_str( & format ! (ARRAYSIZE ! ()));
-					try ! (conn.set(az, vec.len()));
-				}
-				for e in vec.iter() {
-					$ ({
-						dk.push_str( & format ! (ARRAYNDX ! (), $id));
-						try ! ((*e).$fname.redis_write(conn, &dk));
-						dk.truncate(dklen);
-					})*
-				}
-
-				Ok(())
-			}
-
-			fn redis_read_struct_vec(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<Vec<Self>>>
-			 {
-					use redis::Commands;
-
-					let mut dk = format!("{}",key);
-					let dklen = dk.len();
-
-					// do NOT use scan or anything like this, Redis will just walk all keys
-					// possibly
-					dk.push_str(&format!(ARRAYSIZE!()));
-					conn.get(dk.clone())
-						.map_err(|_| redis::RedisError::from((redis::ErrorKind::TypeError,
-															"cannot find array size")))
-						.and_then(|alen| {
-							if let Some(ialen) = alen {
-								let mut rv = Vec::<$name>::with_capacity(ialen);
-
-								dk.truncate(dklen);
-								{
-									let mut r: $ name = $ name::default();
-									$ ({
-
-										dk.push_str( & format ! (FIELDNDX ! (), $id));
-										if let Some(v) = try ! (
-											$crate::redispersistency::RedisPersistency::redis_read(conn,
-												&dk)) {
-											r.$fname = v;
-										}
-										dk.truncate(dklen);
-									}) *
-									rv.push(r);
-								}
-
-								Ok(Some(rv))
-							} else {
-								Err(redis::RedisError::from((redis::ErrorKind::TypeError,
-															"cannot find array size")))
-							}
-						})
-			}
-		}
-
-		#[cfg(feature = "redis")]
-		impl $crate::redispersistency::RedisPersistency for $name {
-
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				use $crate::redispersistency::RedisPersistency;
-
-				let mut dk : String = key.clone();
-				let dklen = dk.len();
-
-				$({
-					dk.push_str(&format!(FIELDNDX!(),$id));
-					try!(self.$fname.redis_write(conn, &dk));
-					dk.truncate(dklen);
-				})*
-				Ok(())
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>> {
-				use $crate::redispersistency::RedisPersistency;
-
-				let mut dk : String = key.clone();
-				let dklen = dk.len();
-
-				let mut r : $name = $name::default();
-
-				$({
-					dk.push_str(&format!(FIELDNDX!(),$id));
-					if let Some(v) = try!($crate::redispersistency::RedisPersistency::redis_read(conn,
-															&dk)) {
-						r.$fname = v;
-					}
-					dk.truncate(dklen);
-				})*
-				Ok(Some(r))
-			}
-		}
-
-		#[cfg(feature = "redis")]
-		impl $crate::redispersistency::RedisPersistency for Vec<$name>
-		{
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				use $crate::redispersistency::RedisStruct;
-
-				$name::redis_write_struct_ref_vec(&self.iter().collect::<Vec<_>>(), conn, key)
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<Vec<$name>>> {
-				use $crate::redispersistency::RedisStruct;
-
-				$name::redis_read_struct_vec(conn, key)
-			}
-		}
-
-		impl $crate::redispersistency::RedisPersistency for BTreeSet<$name>
-
-		{
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				use $crate::redispersistency::RedisStruct;
-
-				$name::redis_write_struct_ref_vec(&self.iter().collect::<Vec<_>>(), conn, key)
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String)
-				-> redis::RedisResult<Option<BTreeSet<$name>>> {
-				use $crate::redispersistency::RedisStruct;
-
-				if let Ok(rv) = $name::redis_read_struct_vec(conn, key) {
-					if let Some(irv) = rv {
-						Ok(Some(irv.into_iter().collect::<BTreeSet<_>>()))
-					} else {
-						Ok(None)
-					}
-				} else {
-					Ok(None)
-				}
-			}
-		}
+		custom_struct_traits ! ( $name, { $($fname: $fty => $id, )+ } );
 
 
     };
@@ -489,6 +333,8 @@ macro_rules! strukt {
                 Ok(())
             }
         }
+
+        custom_struct_traits! ($name, { } );
 
     }
 }
@@ -539,59 +385,7 @@ macro_rules! enom {
             }
         }
 
-        #[cfg(feature = "redis")]
-        impl $crate::redispersistency::RedisPersistency for $name
-
-		{
-			fn redis_write(&self, conn: &redis::Connection, key: &String) -> redis::RedisResult<()> {
-				use redis::Commands;
-
-				let dk = key;
-				try!(conn.set(dk,*self as i32));
-				Ok(())
-			}
-
-			fn redis_read(conn: &redis::Connection, key: &String) -> redis::RedisResult<Option<Self>> {
-				use redis::Commands;
-				use $crate::protocol::FromNum;
-
-				let dk = key;
-
-				if let Some(v) = try!(conn.get(dk)) {
-					Ok($name::from_num(v))
-				} else {
-					Ok(None)
-				}
-
-			}
-		}
-
-		#[cfg(feature = "redis")]
-		impl redis::FromRedisValue for $name {
-			fn from_redis_value(v: &redis::Value) -> redis::RedisResult<$name> {
-				use $crate::protocol::FromNum;
-
-				match *v {
-					redis::Value::Int(val) => {
-						if let Some(v) = $name::from_num(val as i32) {
-							Ok(v)
-						} else {
-							Err(redis::RedisError::from((redis::ErrorKind::TypeError,
-							"invalid enum value")))
-						}
-					},
-					_ => Err(redis::RedisError::from((redis::ErrorKind::TypeError,
-															"invalid enum value"))),
-				}
-			}
-		}
-
-		#[cfg(feature = "redis")]
-		impl redis::ToRedisArgs for $name {
-			fn to_redis_args(&self) -> Vec<Vec<u8>> {
-				(*self as i32).to_redis_args()
-			}
-		}
+        custom_enum_traits! ( $name, { $($vname = $val, )* });
     }
 }
 

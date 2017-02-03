@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet};
-#[cfg(feature = "redis")]
-use redis;
+#[macro_use]
+use customtraits;
 
 strukt! {
     name = Simple,
@@ -11,11 +11,10 @@ strukt! {
 
 strukt! {
     name = Empty,
-    fields = {}
+    fields = {
+    }
 }
 
-// we don't implement arbitrary depth flatenning in Redis
-#[cfg(not(feature = "redis"))]
 strukt! {
     name = Nested,
     fields = {
