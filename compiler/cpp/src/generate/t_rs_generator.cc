@@ -60,6 +60,7 @@ class t_rs_generator : public t_oop_generator {
    * Program-level generation functions
    */
   void generate_program();
+    void generate_imports();
   void generate_typedef(t_typedef*  ttypedef);
   void generate_enum(t_enum*     tenum);
   void generate_struct(t_struct*   tstruct);
@@ -153,6 +154,8 @@ void t_rs_generator::generate_program() {
   // Initialize the generator
   init_generator();
 
+    generate_imports();
+
   // Generate service uses
   vector<t_service*> services = program_->get_services();
   vector<t_service*>::iterator sv_iter;
@@ -228,6 +231,13 @@ string t_rs_generator::rs_imports() {
   return string("#![allow(unused_mut, dead_code, non_snake_case, unused_imports)]\n") +
           "use ::thrift::rt::OrderedFloat;\n" +
           "use std::collections::{BTreeMap, BTreeSet};\n";
+}
+
+void t_rs_generator::generate_imports() {
+    const std::vector<t_program*>& incls = get_program()->get_includes();
+    for (auto i = incls.begin(); i!=incls.end(); ++i) {
+        indent(f_mod_) << "use " << endl;
+    }
 }
 
 // Generates a type alias, translating a thrift `typedef` to a rust `type`.
