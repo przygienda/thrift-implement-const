@@ -236,8 +236,16 @@ string t_rs_generator::rs_imports() {
 void t_rs_generator::generate_imports() {
     const std::vector<t_program*>& incls = get_program()->get_includes();
     for (auto i = incls.begin(); i!=incls.end(); ++i) {
-        indent(f_mod_) << "use " << endl;
+        string p("");
+        string ns = get_program()->get_namespace("rs");
+        if (ns.length()>0) {
+            p += "::" + ns + "::";
+        }
+        p += (*i)->get_name();
+
+        indent(f_mod_) << "use " << p << "::*;" << endl;
     }
+    f_mod_ << "\n";
 }
 
 // Generates a type alias, translating a thrift `typedef` to a rust `type`.
@@ -599,10 +607,22 @@ string t_rs_generator::render_rs_type(t_type* type) {
     }
 
   } else if (type->is_enum()) {
-    return capitalize(((t_enum*)type)->get_name());
+      t_enum* t=(t_enum*)type;
+      return capitalize(t->get_name());
 
   } else if (type->is_struct() || type->is_xception()) {
-    return capitalize(((t_struct*)type)->get_name());
+        t_struct *t = (t_struct*) type;
+//      string p("");
+//      string ns = get_program()->get_namespace("rs");
+//      if (ns.length()>0) {
+//          p += "::" + ns + "::";
+//      }
+//      string pn = t->get_program()->get_name();
+//      if (pn.length()>0) {
+//          p += pn + "::";
+//      }
+
+      return capitalize(t->get_name());
 
   } else if (type->is_map()) {
     t_type* ktype = ((t_map*)type)->get_key_type();

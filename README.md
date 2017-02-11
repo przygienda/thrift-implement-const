@@ -22,6 +22,13 @@ Major limitations:
 
 Last Modified: 2014-03-16
 
+Addition 2016 PRZ
+=================
+
+ * added first simple constant support for basic types 
+ * added support for namespace (gives the root of the thrift modules in rust build tree)
+ * added support for includes generating use ::namespace::include.name::*
+
 License
 =======
 
